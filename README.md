@@ -19,5 +19,21 @@ docker run \
 --restart unless-stopped michelmu/knxd
 ```
 
-Test the knx server by login to the container and run e.g.
-`knxtool groupswrite ip:localhost 0/0/20 0`
+## Test
+Logon to docker container and test with `knxtool`
+
+```bash
+docker exec -it knxd bash
+
+knxtool on ip:127.0.0.1 0/1/50
+knxtool off ip:127.0.0.1 0/1/50
+```
+
+## create UDEV Rule for /dev/knx
+- Show the attributes of your KNX device. e.g. `udevadm info -a -p $(udevadm info -q path -n /dev/ttyACM0)`
+- Note some unique attributes e.g. idVendor, iDProduct, serial and note them down
+- Create a new udev rule: `sudo vi /lib/udev/rules.d/99-usb-knx.rules` and put a line with 
+`SUBSYSTEM=="tty", ATTRS{idVendor}=="03eb", ATTRS{idProduct}=="204b", ATTRS{serial}=="-your-serial-id", SYMLINK+="knx"`
+- Reload udev rules: `sudo udevadm control --reload-rules && udevadm trigger`
+- Re-Insert KNX device
+- Now you should have a device /dev/knx which you can use for this docker container which links to your knx device
