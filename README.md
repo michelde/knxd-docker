@@ -6,6 +6,18 @@ Build the container with specific version of KNXD.
 docker build -t michelmu/knxd-docker --build-arg KNXD_VERSION=0.14.39 .
 ```
 
+or as multi-platform build and push to docker hub:
+```bash
+docker buildx build \
+    -t michelmu/knxd-docker:0.14.59 \
+    -t michelmu/knxd-docker:latest \
+    --push \
+    --build-arg KNXD_VERSION=0.14.59 \
+    --builder=container \
+    --platform=linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 .
+```
+
+
 Run knxd in docker container
 
 ```bash

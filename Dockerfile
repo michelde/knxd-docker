@@ -29,7 +29,6 @@ RUN set -xe \
 # ARG is in my Synology Docker version not working - yet
 ARG KNXD_VERSION
 RUN git clone --branch "$KNXD_VERSION" --depth 1 https://github.com/knxd/knxd.git \
-# RUN git clone --branch "0.14.53" --depth 1 https://github.com/knxd/knxd.git \
      && cd knxd \
      && chmod 777 ./bootstrap.sh \
      && ./bootstrap.sh \
