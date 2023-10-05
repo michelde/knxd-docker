@@ -5,8 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-#      args:                                                                      
-#        KNXD_VERSION: 0.14.39
+      args:                                                                      
+        KNXD_VERSION: 0.14.59
     ports:
       - "6720:6720/tcp"
       - "3671:3671/udp"
