@@ -3,17 +3,17 @@
 Build the container with specific version of KNXD.
 
 ```bash
-docker build -t michelmu/knxd-docker --build-arg KNXD_VERSION=0.14.64 .
+docker build -t michelmu/knxd-docker --build-arg KNXD_VERSION=0.14.67 .
 ```
 
 or as multi-platform build and push to docker hub:
 
 ```bash
 docker buildx build \
-    -t michelmu/knxd-docker:0.14.64 \
+    -t michelmu/knxd-docker:0.14.67 \
     -t michelmu/knxd-docker:latest \
     --push \
-    --build-arg KNXD_VERSION=0.14.64 \
+    --build-arg KNXD_VERSION=0.14.67 \
     --builder=container \
     --platform=linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 .
 ```
@@ -23,20 +23,20 @@ Run knxd in docker container
 ```bash
 docker run \
 --name=knxd \
--p 6720:6720/tcp -p 3671:3671/udp \
+-p 6720:6720/tcp \
+-p 3671:3671/udp \
 --device=/dev/bus/usb:/dev/bus/usb:rwm \
 --device=/dev/mem:/dev/mem:rw \
---device=/dev/knx:/dev/knx \
+--device=/dev/serial/by-id/usb-busware.de_TPUART_transparent_95738343235351D032C0-if00:/dev/knx \
 --cap-add=SYS_MODULE \
 --cap-add=SYS_RAWIO \
--e ADDRESS="1.5.1"
--e CLIENT_ADDRESS="1.5.2:10"
--e INTERFACE=tpuart
--e DEVICE="/dev/serial/by-id/"
--e DEBUG_ERROR_LEVEL="ERROR"
--e FILTERS="single"
-
---restart unless-stopped michelmu/knxd
+-e ADDRESS="1.5.1" \
+-e CLIENT_ADDRESS="1.5.2:10" \
+-e INTERFACE=tpuart \
+-e DEVICE="/dev/knx" \
+-e DEBUG_ERROR_LEVEL="error" \
+-e FILTERS="single" \
+--restart unless-stopped michelmu/knxd-docker
 ```
 
 ## Test

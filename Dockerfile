@@ -1,6 +1,6 @@
-FROM alpine:3.18 as build
+FROM alpine:3.18 AS build
 
-ENV LANG C.UTF-8
+ENV LANG=C.UTF-8
 RUN set -xe \
      && apk update \
      && apk add --no-cache --virtual .build-dependencies \
@@ -58,7 +58,8 @@ RUN set -xe \
      libev \
      libgcc \
      libstdc++ \
-     libtool
+     libtool \
+     envsubst
 
 # copy knxd files and libs
 COPY --from=build /install/ /
