@@ -3,19 +3,21 @@
 Build the container with specific version of KNXD.
 
 ```bash
-docker build -t michelmu/knxd-docker --build-arg KNXD_VERSION=0.14.67 .
+docker build -t michelmu/knxd-docker --build-arg KNXD_VERSION=0.14.68 -t michelmu/knxd-docker:latest -t michelmu/knxd-docker:0.14.68 .
 ```
 
 or as multi-platform build and push to docker hub:
 
 ```bash
+docker buildx create --name mybuilder --use
+docker buildx inspect mybuilder --bootstrap
 docker buildx build \
-    -t michelmu/knxd-docker:0.14.67 \
+    --build-arg KNXD_VERSION=0.14.68 \
+    --platform=linux/amd64,linux/arm64 \
     -t michelmu/knxd-docker:latest \
-    --push \
-    --build-arg KNXD_VERSION=0.14.67 \
-    --builder=container \
-    --platform=linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 .
+    -t michelmu/knxd-docker:0.14.68 \
+    . \
+    --push
 ```
 
 Run knxd in docker container
@@ -36,7 +38,7 @@ docker run \
 -e DEVICE="/dev/knx" \
 -e DEBUG_ERROR_LEVEL="error" \
 -e FILTERS="single" \
---restart unless-stopped michelmu/knxd-docker
+--restart unless-stopped michelmu/knxd-docker:latest
 ```
 
 ## Test
@@ -49,13 +51,3 @@ docker exec -it knxd bash
 knxtool on ip:127.0.0.1 0/1/50
 knxtool off ip:127.0.0.1 0/1/50
 ```
-
-## create UDEV Rule for /dev/knx
-
-- Show the attributes of your KNX device. e.g. `udevadm info -a -p $(udevadm info -q path -n /dev/ttyACM0)`
-- Note some unique attributes e.g. idVendor, iDProduct, serial and note them down
-- Create a new udev rule: `sudo vi /lib/udev/rules.d/99-usb-knx.rules` and put a line with 
-`SUBSYSTEM=="tty", ATTRS{idVendor}=="03eb", ATTRS{idProduct}=="204b", ATTRS{serial}=="-your-serial-id", SYMLINK+="knx"`
-- Reload udev rules: `sudo udevadm control --reload-rules && udevadm trigger`
-- Re-Insert KNX device
-- Now you should have a device /dev/knx which you can use for this docker container which links to your knx device
