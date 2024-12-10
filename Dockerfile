@@ -40,7 +40,7 @@ RUN git clone --branch "$KNXD_VERSION" --depth 1 https://github.com/knxd/knxd.gi
 --enable-eibnetip \
 --enable-eibnetserver \
 --enable-eibnetiptunnel \
---enable-groupcache \
+ --enable-groupcache \
 && mkdir -p src/include/sys && ln -s /usr/lib/bcc/include/sys/cdefs.h src/include/sys \
 && make \
 && mkdir /install \
