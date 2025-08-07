@@ -1,0 +1,265 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run weekly on Sundays at 6 AM UTC
+    - cron: '0 6 * * 0'
+  workflow_dispatch:
+    inputs:
+      check_knxd_versions:
+        description: 'Check for new KNXD versions'
+        required: false
+        default: true
+        type: boolean
+      update_base_images:
+        description: 'Check for base image updates'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  # Check for new KNXD versions
+  check-knxd-versions:
+    name: Check KNXD Versions
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.check_knxd_versions == 'true'
+    outputs:
+      latest-version: ${{ steps.check-version.outputs.latest-version }}
+      current-version: ${{ steps.check-version.outputs.current-version }}
+      update-available: ${{ steps.check-version.outputs.update-available }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for new KNXD versions
+        id: check-version
+        run: |
+          # Get current version from workflow file
+          CURRENT_VERSION=$(grep 'DEFAULT_KNXD_VERSION:' .github/workflows/build-and-release.yml | cut -d'"' -f2)
+          echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current KNXD version: $CURRENT_VERSION"
+          
+          # Get latest version from GitHub API
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/knxd/knxd/releases/latest | jq -r '.tag_name')
+          echo "latest-version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest KNXD version: $LATEST_VERSION"
+          
+          # Compare versions
+          if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+            echo "update-available=true" >> $GITHUB_OUTPUT
+            echo "Update available: $CURRENT_VERSION -> $LATEST_VERSION"
+          else
+            echo "update-available=false" >> $GITHUB_OUTPUT
+            echo "No update available"
+          fi
+
+      - name: Create issue for KNXD update
+        if: steps.check-version.outputs.update-available == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const currentVersion = '${{ steps.check-version.outputs.current-version }}';
+            const latestVersion = '${{ steps.check-version.outputs.latest-version }}';
+            
+            const title = `Update KNXD to version ${latestVersion}`;
+            const body = `## KNXD Version Update Available
+            
+            A new version of KNXD is available:
+            - Current version: \`${currentVersion}\`
+            - Latest version: \`${latestVersion}\`
+            
+            ## Changes Required
+            
+            1. Update \`DEFAULT_KNXD_VERSION\` in \`.github/workflows/build-and-release.yml\`
+            2. Update version references in documentation
+            3. Test the new version with existing configurations
+            4. Update examples if needed
+            
+            ## Testing Checklist
+            
+            - [ ] Build succeeds with new version
+            - [ ] TPUART interface works
+            - [ ] IP tunneling works  
+            - [ ] USB interface works
+            - [ ] Health checks pass
+            - [ ] Examples work correctly
+            
+            ## Links
+            
+            - [KNXD Release Notes](https://github.com/knxd/knxd/releases/tag/${latestVersion})
+            - [KNXD Repository](https://github.com/knxd/knxd)
+            
+            This issue was automatically created by the dependency update workflow.`;
+            
+            // Check if issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'dependency-update,knxd'
+            });
+            
+            const existingIssue = issues.data.find(issue => 
+              issue.title.includes(`Update KNXD to version ${latestVersion}`)
+            );
+            
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['dependency-update', 'knxd', 'enhancement']
+              });
+              console.log('Created issue for KNXD update');
+            } else {
+              console.log('Issue already exists for this version');
+            }
+
+  # Check for base image updates
+  check-base-images:
+    name: Check Base Image Updates
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.update_base_images == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Alpine version
+        run: |
+          # Get current Alpine version from Dockerfile
+          CURRENT_ALPINE=$(grep "FROM alpine:" Dockerfile | head -1 | cut -d':' -f2 | cut -d' ' -f1)
+          echo "Current Alpine version: $CURRENT_ALPINE"
+          
+          # Get latest Alpine version (this is a simplified check)
+          # In practice, you might want to check specific Alpine release channels
+          LATEST_ALPINE=$(curl -s https://registry.hub.docker.com/v2/repositories/library/alpine/tags/ | jq -r '.results[0].name')
+          echo "Latest Alpine version: $LATEST_ALPINE"
+          
+          # Check for security updates
+          echo "Checking for Alpine security updates..."
+          docker pull alpine:$CURRENT_ALPINE
+          docker run --rm alpine:$CURRENT_ALPINE apk list --upgradable || true
+
+      - name: Check for GitHub Actions updates
+        run: |
+          echo "Checking GitHub Actions versions..."
+          
+          # List current action versions
+          grep -r "uses:" .github/workflows/ | grep -v "# " | sort | uniq
+          
+          # Note: Automated checking of action updates would require more complex logic
+          # This is a placeholder for manual review
+
+      - name: Security scan base images
+        run: |
+          # Pull and scan current base image
+          docker pull alpine:3.18
+          
+          # Install trivy for scanning
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          
+          # Scan for vulnerabilities
+          trivy image --severity HIGH,CRITICAL alpine:3.18 || true
+
+  # Create dependency update summary
+  dependency-summary:
+    name: Dependency Update Summary
+    runs-on: ubuntu-latest
+    needs: [check-knxd-versions, check-base-images]
+    if: always()
+    steps:
+      - name: Create summary
+        run: |
+          echo "# Dependency Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Generated on: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.check-knxd-versions.outputs.update-available }}" = "true" ]; then
+            echo "## 🔄 KNXD Update Available" >> $GITHUB_STEP_SUMMARY
+            echo "- Current: ${{ needs.check-knxd-versions.outputs.current-version }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Latest: ${{ needs.check-knxd-versions.outputs.latest-version }}" >> $GITHUB_STEP_SUMMARY
+            echo "- An issue has been created for this update" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ✅ KNXD Up to Date" >> $GITHUB_STEP_SUMMARY
+            echo "- Current version: ${{ needs.check-knxd-versions.outputs.current-version }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- Review any created issues" >> $GITHUB_STEP_SUMMARY
+          echo "- Test updates in a development environment" >> $GITHUB_STEP_SUMMARY
+          echo "- Update documentation if needed" >> $GITHUB_STEP_SUMMARY
+          echo "- Consider updating examples" >> $GITHUB_STEP_SUMMARY
+
+  # Automated PR for minor updates (optional)
+  auto-update-minor:
+    name: Auto Update Minor Dependencies
+    runs-on: ubuntu-latest
+    needs: [check-knxd-versions]
+    if: needs.check-knxd-versions.outputs.update-available == 'true' && github.event_name == 'schedule'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Check if update is minor
+        id: check-minor
+        run: |
+          CURRENT="${{ needs.check-knxd-versions.outputs.current-version }}"
+          LATEST="${{ needs.check-knxd-versions.outputs.latest-version }}"
+          
+          # Simple check for patch version updates (e.g., 0.14.66 -> 0.14.67)
+          CURRENT_MAJOR=$(echo $CURRENT | cut -d. -f1)
+          CURRENT_MINOR=$(echo $CURRENT | cut -d. -f2)
+          LATEST_MAJOR=$(echo $LATEST | cut -d. -f1)
+          LATEST_MINOR=$(echo $LATEST | cut -d. -f2)
+          
+          if [ "$CURRENT_MAJOR" = "$LATEST_MAJOR" ] && [ "$CURRENT_MINOR" = "$LATEST_MINOR" ]; then
+            echo "is-minor=true" >> $GITHUB_OUTPUT
+            echo "This appears to be a patch version update"
+          else
+            echo "is-minor=false" >> $GITHUB_OUTPUT
+            echo "This appears to be a major/minor version update"
+          fi
+
+      - name: Create auto-update PR for patch versions
+        if: steps.check-minor.outputs.is-minor == 'true'
+        run: |
+          CURRENT="${{ needs.check-knxd-versions.outputs.current-version }}"
+          LATEST="${{ needs.check-knxd-versions.outputs.latest-version }}"
+          
+          # Create new branch
+          git checkout -b "auto-update-knxd-$LATEST"
+          
+          # Update version in workflow file
+          sed -i "s/DEFAULT_KNXD_VERSION: \"$CURRENT\"/DEFAULT_KNXD_VERSION: \"$LATEST\"/" .github/workflows/build-and-release.yml
+          
+          # Update version in build script default
+          sed -i "s/KNXD_VERSION=\"\${1:-$CURRENT}\"/KNXD_VERSION=\"\${1:-$LATEST}\"/" scripts/build.sh
+          
+          # Commit changes
+          git add .
+          git commit -m "Auto-update KNXD to version $LATEST
+          
+          This is an automated patch version update.
+          
+          Changes:
+          - Updated DEFAULT_KNXD_VERSION in build workflow
+          - Updated default version in build script
+          
+          Please review and test before merging."
+          
+          # Push branch
+          git push origin "auto-update-knxd-$LATEST"
+          
+          # Create PR using GitHub CLI (if available) or API
+          echo "Branch created: auto-update-knxd-$LATEST"
+          echo "Manual PR creation required or use GitHub CLI"

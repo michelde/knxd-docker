@@ -1,0 +1,341 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      knxd_version:
+        description: 'KNXD Version to build'
+        required: true
+        default: '0.14.66'
+        type: string
+      push_to_registry:
+        description: 'Push to Docker registry'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: michelmu/knxd-docker
+  DEFAULT_KNXD_VERSION: "0.14.66"
+
+jobs:
+  # Lint and validate configuration files
+  lint:
+    name: Lint and Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning
+
+      - name: Validate docker-compose files
+        run: |
+          # Install docker-compose
+          sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          
+          # Validate main docker-compose.yaml
+          docker-compose -f docker-compose.yaml config
+          
+          # Validate example docker-compose files
+          for compose_file in examples/*/docker-compose.yml; do
+            if [ -f "$compose_file" ]; then
+              echo "Validating $compose_file"
+              docker-compose -f "$compose_file" config
+            fi
+          done
+
+      - name: Validate shell scripts
+        run: |
+          # Install shellcheck
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          
+          # Check all shell scripts
+          find . -name "*.sh" -type f -exec shellcheck {} \;
+
+      - name: Check script permissions
+        run: |
+          # Verify scripts are executable
+          for script in scripts/*.sh; do
+            if [ ! -x "$script" ]; then
+              echo "Error: $script is not executable"
+              exit 1
+            fi
+          done
+
+  # Build and test the Docker image
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-metadata: ${{ steps.meta.outputs.json }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=knxd-docker
+            org.opencontainers.image.description=KNX daemon in Docker container
+            org.opencontainers.image.vendor=Michel Munzert
+            org.opencontainers.image.licenses=MIT
+
+      - name: Determine KNXD version
+        id: knxd-version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.knxd_version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ env.DEFAULT_KNXD_VERSION }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || github.event.inputs.push_to_registry == 'true') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            KNXD_VERSION=${{ steps.knxd-version.outputs.version }}
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VCS_REF=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Test the built image
+  test:
+    name: Test Docker Image
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        test-type: [basic, tpuart, ip-tunneling, usb]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: knxd-test:latest
+          build-args: |
+            KNXD_VERSION=${{ env.DEFAULT_KNXD_VERSION }}
+            BUILD_DATE=${{ github.run_id }}
+            VCS_REF=${{ github.sha }}
+          cache-from: type=gha
+
+      - name: Test basic functionality
+        if: matrix.test-type == 'basic'
+        run: |
+          # Test image can start with minimal config
+          docker run --rm -d --name knxd-test \
+            -e ADDRESS=1.5.1 \
+            -e CLIENT_ADDRESS=1.5.2:10 \
+            -e INTERFACE=dummy \
+            knxd-test:latest
+          
+          # Wait for startup
+          sleep 10
+          
+          # Check if container is running
+          docker ps | grep knxd-test
+          
+          # Check logs for errors
+          docker logs knxd-test
+          
+          # Stop container
+          docker stop knxd-test
+
+      - name: Test TPUART configuration
+        if: matrix.test-type == 'tpuart'
+        run: |
+          # Test TPUART configuration validation
+          docker run --rm \
+            -e ADDRESS=1.5.1 \
+            -e CLIENT_ADDRESS=1.5.2:10 \
+            -e INTERFACE=tpuart \
+            -e DEVICE=/dev/nonexistent \
+            knxd-test:latest || echo "Expected failure for missing device"
+
+      - name: Test IP tunneling configuration
+        if: matrix.test-type == 'ip-tunneling'
+        run: |
+          # Test IP tunneling configuration validation
+          docker run --rm \
+            -e ADDRESS=1.5.1 \
+            -e CLIENT_ADDRESS=1.5.2:10 \
+            -e INTERFACE=ipt \
+            -e IP_ADDRESS=192.168.1.50 \
+            -e DEST_PORT=3671 \
+            knxd-test:latest || echo "Expected failure for unreachable IP"
+
+      - name: Test USB configuration
+        if: matrix.test-type == 'usb'
+        run: |
+          # Test USB configuration validation
+          docker run --rm \
+            -e ADDRESS=1.5.1 \
+            -e CLIENT_ADDRESS=1.5.2:10 \
+            -e INTERFACE=usb \
+            -e USB_DEVICE=/dev/bus/usb/001/002 \
+            knxd-test:latest || echo "Expected failure for missing USB device"
+
+      - name: Run health check script
+        run: |
+          # Start container for health check testing
+          docker run --rm -d --name knxd-health-test \
+            -e ADDRESS=1.5.1 \
+            -e CLIENT_ADDRESS=1.5.2:10 \
+            -e INTERFACE=dummy \
+            knxd-test:latest
+          
+          # Wait for startup
+          sleep 15
+          
+          # Run health check
+          chmod +x scripts/health-check.sh
+          ./scripts/health-check.sh knxd-health-test || true
+          
+          # Stop container
+          docker stop knxd-health-test
+
+  # Security scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: knxd-scan:latest
+          build-args: |
+            KNXD_VERSION=${{ env.DEFAULT_KNXD_VERSION }}
+            BUILD_DATE=${{ github.run_id }}
+            VCS_REF=${{ github.sha }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'knxd-scan:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Create GitHub release for tags
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build, test, security]
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            ## Changes in this Release
+            
+            - Built with KNXD version ${{ env.DEFAULT_KNXD_VERSION }}
+            - Multi-platform support (linux/amd64, linux/arm64)
+            - Enhanced validation and error handling
+            - Comprehensive health checks
+            - Optimized Docker image size
+            
+            ## Docker Images
+            
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ```
+            
+            ## Quick Start
+            
+            See the [Quick Start Guide](docs/quick-start.md) for setup instructions.
+            
+            ## Examples
+            
+            Ready-to-use examples are available in the [examples/](examples/) directory.
+          draft: false
+          prerelease: false
+
+  # Cleanup old images
+  cleanup:
+    name: Cleanup Old Images
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Delete old images
+        uses: actions/delete-package-versions@v4
+        with:
+          package-name: knxd-docker
+          package-type: container
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: true

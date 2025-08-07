@@ -1,0 +1,56 @@
+# TPUART Interface Example
+# This example shows how to configure knxd-docker with a TPUART interface
+# using a USB serial adapter (like Busware TPUART)
+
+services:
+  knxd:
+    image: michelmu/knxd-docker:latest
+    container_name: knxd-tpuart
+    restart: unless-stopped
+    
+    # Port mappings
+    ports:
+      - "6720:6720/tcp"   # KNX daemon port
+      - "3671:3671/udp"   # KNXnet/IP port
+    
+    # Device mappings for USB serial adapter
+    devices:
+      - "/dev/bus/usb:/dev/bus/usb:rwm"
+      - "/dev/mem:/dev/mem:rw"
+      # Map the specific USB device to /dev/knx inside container
+      - "/dev/serial/by-id/usb-busware.de_TPUART_transparent_95738343235351D032C0-if00:/dev/knx"
+    
+    # Required capabilities for hardware access
+    cap_add:
+      - SYS_MODULE
+      - SYS_RAWIO
+    
+    # Environment variables for TPUART configuration
+    environment:
+      # Core configuration
+      - ADDRESS=1.5.1                    # KNX physical address
+      - CLIENT_ADDRESS=1.5.2:10          # Client address range (start:count)
+      - INTERFACE=tpuart                 # Interface type
+      - DEVICE=/dev/knx                  # Device path inside container
+      
+      # Optional configuration
+      - DEBUG_ERROR_LEVEL=error          # Logging level
+      - FILTERS=single                   # Packet filtering
+      - SERVER_INTERFACE=                # Network interface (empty = default)
+    
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "sh", "-c", "ps aux | grep -v grep | grep knxd && netstat -ln | grep 6720"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Volume for persistent logs (optional)
+    volumes:
+      - knxd-logs:/var/log/knxd
+
+# Named volume for logs
+volumes:
+  knxd-logs:
+    driver: local

@@ -1,0 +1,77 @@
+# IP Tunneling Interface Example
+# This example shows how to configure knxd-docker with KNXnet/IP tunneling
+# to connect to a KNX/IP gateway or router
+
+services:
+  knxd:
+    image: michelmu/knxd-docker:latest
+    container_name: knxd-ip-tunnel
+    restart: unless-stopped
+    
+    # Port mappings
+    ports:
+      - "6720:6720/tcp"   # KNX daemon port
+      - "3671:3671/udp"   # KNXnet/IP port
+    
+    # Network configuration for IP tunneling
+    network_mode: host    # Use host networking for better KNX/IP compatibility
+    
+    # Environment variables for IP tunneling configuration
+    environment:
+      # Core configuration
+      - ADDRESS=1.5.1                    # KNX physical address
+      - CLIENT_ADDRESS=1.5.2:10          # Client address range (start:count)
+      - INTERFACE=ipt                    # IP tunneling interface
+      - IP_ADDRESS=192.168.1.50          # KNX/IP gateway IP address
+      - DEST_PORT=3671                   # KNX/IP gateway port
+      
+      # Optional configuration
+      - DEBUG_ERROR_LEVEL=error          # Logging level
+      - NAT=false                        # NAT mode (set to true if behind NAT)
+      - SERVER_INTERFACE=                # Network interface (empty = default)
+    
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "sh", "-c", "ps aux | grep -v grep | grep knxd && netstat -ln | grep 6720"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Volume for persistent logs (optional)
+    volumes:
+      - knxd-logs:/var/log/knxd
+
+# Alternative configuration using bridge network
+# Uncomment this section if you prefer bridge networking
+#
+# services:
+#   knxd-bridge:
+#     image: michelmu/knxd-docker:latest
+#     container_name: knxd-ip-tunnel-bridge
+#     restart: unless-stopped
+#     
+#     ports:
+#       - "6720:6720/tcp"
+#       - "3671:3671/udp"
+#     
+#     environment:
+#       - ADDRESS=1.5.1
+#       - CLIENT_ADDRESS=1.5.2:10
+#       - INTERFACE=ipt
+#       - IP_ADDRESS=192.168.1.50
+#       - DEST_PORT=3671
+#       - DEBUG_ERROR_LEVEL=error
+#       - NAT=true                       # Enable NAT mode for bridge networking
+#     
+#     healthcheck:
+#       test: ["CMD", "sh", "-c", "ps aux | grep -v grep | grep knxd && netstat -ln | grep 6720"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 3
+#       start_period: 40s
+
+# Named volume for logs
+volumes:
+  knxd-logs:
+    driver: local

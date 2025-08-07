@@ -1,0 +1,313 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'examples/**/*.md'
+      - '.github/workflows/documentation.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'examples/**/*.md'
+  workflow_dispatch:
+
+jobs:
+  # Check documentation links and formatting
+  validate-docs:
+    name: Validate Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install markdown tools
+        run: |
+          npm install -g markdownlint-cli markdown-link-check
+
+      - name: Lint markdown files
+        run: |
+          # Create markdownlint config
+          cat > .markdownlint.json << EOF
+          {
+            "MD013": { "line_length": 120 },
+            "MD033": false,
+            "MD041": false
+          }
+          EOF
+          
+          # Lint all markdown files
+          find . -name "*.md" -not -path "./node_modules/*" -exec markdownlint {} \;
+
+      - name: Check markdown links
+        run: |
+          # Create link check config
+          cat > .markdown-link-check.json << EOF
+          {
+            "ignorePatterns": [
+              {
+                "pattern": "^http://localhost"
+              },
+              {
+                "pattern": "^https://localhost"
+              },
+              {
+                "pattern": "^http://127.0.0.1"
+              },
+              {
+                "pattern": "^https://127.0.0.1"
+              },
+              {
+                "pattern": "^http://<"
+              },
+              {
+                "pattern": "^https://<"
+              }
+            ],
+            "timeout": "10s",
+            "retryOn429": true,
+            "retryCount": 3,
+            "fallbackRetryDelay": "30s",
+            "aliveStatusCodes": [200, 206, 301, 302, 307, 308]
+          }
+          EOF
+          
+          # Check links in all markdown files
+          find . -name "*.md" -not -path "./node_modules/*" -exec markdown-link-check --config .markdown-link-check.json {} \;
+
+      - name: Validate documentation structure
+        run: |
+          # Check that referenced files exist
+          echo "Checking documentation structure..."
+          
+          # Check main README references
+          if [ -f "README.md" ]; then
+            echo "✓ Main README exists"
+          else
+            echo "✗ Main README missing"
+            exit 1
+          fi
+          
+          # Check docs directory structure
+          if [ -d "docs" ]; then
+            echo "✓ docs/ directory exists"
+          else
+            echo "✗ docs/ directory missing"
+            exit 1
+          fi
+          
+          # Check examples directory
+          if [ -d "examples" ]; then
+            echo "✓ examples/ directory exists"
+          else
+            echo "✗ examples/ directory missing"
+            exit 1
+          fi
+          
+          # Check scripts directory
+          if [ -d "scripts" ]; then
+            echo "✓ scripts/ directory exists"
+          else
+            echo "✗ scripts/ directory missing"
+            exit 1
+          fi
+          
+          # Validate example directories have required files
+          for example_dir in examples/*/; do
+            if [ -d "$example_dir" ]; then
+              example_name=$(basename "$example_dir")
+              echo "Checking example: $example_name"
+              
+              if [ -f "${example_dir}docker-compose.yml" ]; then
+                echo "  ✓ docker-compose.yml exists"
+              else
+                echo "  ✗ docker-compose.yml missing in $example_name"
+                exit 1
+              fi
+              
+              if [ -f "${example_dir}README.md" ]; then
+                echo "  ✓ README.md exists"
+              else
+                echo "  ⚠ README.md missing in $example_name (recommended)"
+              fi
+            fi
+          done
+
+      - name: Check for broken internal links
+        run: |
+          # Custom script to check internal links
+          cat > check_internal_links.py << 'EOF'
+          import os
+          import re
+          import sys
+          
+          def find_markdown_files():
+              md_files = []
+              for root, dirs, files in os.walk('.'):
+                  # Skip node_modules and .git directories
+                  dirs[:] = [d for d in dirs if d not in ['.git', 'node_modules']]
+                  for file in files:
+                      if file.endswith('.md'):
+                          md_files.append(os.path.join(root, file))
+              return md_files
+          
+          def extract_internal_links(content):
+              # Find markdown links [text](path) where path doesn't start with http
+              pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+              links = []
+              for match in re.finditer(pattern, content):
+                  link_text = match.group(1)
+                  link_path = match.group(2)
+                  if not link_path.startswith(('http://', 'https://', 'mailto:', '#')):
+                      links.append((link_text, link_path))
+              return links
+          
+          def check_file_exists(base_path, link_path):
+              # Handle relative paths
+              if link_path.startswith('./'):
+                  link_path = link_path[2:]
+              elif link_path.startswith('../'):
+                  # Handle parent directory references
+                  base_dir = os.path.dirname(base_path)
+                  while link_path.startswith('../'):
+                      link_path = link_path[3:]
+                      base_dir = os.path.dirname(base_dir)
+                  full_path = os.path.join(base_dir, link_path)
+              else:
+                  # Relative to current file's directory
+                  base_dir = os.path.dirname(base_path)
+                  full_path = os.path.join(base_dir, link_path)
+              
+              return os.path.exists(full_path)
+          
+          def main():
+              md_files = find_markdown_files()
+              broken_links = []
+              
+              for md_file in md_files:
+                  with open(md_file, 'r', encoding='utf-8') as f:
+                      content = f.read()
+                  
+                  internal_links = extract_internal_links(content)
+                  
+                  for link_text, link_path in internal_links:
+                      if not check_file_exists(md_file, link_path):
+                          broken_links.append((md_file, link_text, link_path))
+              
+              if broken_links:
+                  print("Broken internal links found:")
+                  for file_path, link_text, link_path in broken_links:
+                      print(f"  {file_path}: [{link_text}]({link_path})")
+                  sys.exit(1)
+              else:
+                  print("All internal links are valid!")
+          
+          if __name__ == "__main__":
+              main()
+          EOF
+          
+          python3 check_internal_links.py
+
+  # Generate documentation metrics
+  docs-metrics:
+    name: Documentation Metrics
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Calculate documentation metrics
+        run: |
+          echo "# Documentation Metrics" > docs_metrics.md
+          echo "" >> docs_metrics.md
+          
+          # Count markdown files
+          md_count=$(find . -name "*.md" -not -path "./node_modules/*" | wc -l)
+          echo "- Total Markdown files: $md_count" >> docs_metrics.md
+          
+          # Count lines in documentation
+          total_lines=$(find . -name "*.md" -not -path "./node_modules/*" -exec wc -l {} \; | awk '{sum += $1} END {print sum}')
+          echo "- Total documentation lines: $total_lines" >> docs_metrics.md
+          
+          # Count examples
+          example_count=$(find examples -maxdepth 1 -type d | grep -v "^examples$" | wc -l)
+          echo "- Number of examples: $example_count" >> docs_metrics.md
+          
+          # Count scripts
+          script_count=$(find scripts -name "*.sh" | wc -l)
+          echo "- Number of utility scripts: $script_count" >> docs_metrics.md
+          
+          # List examples
+          echo "" >> docs_metrics.md
+          echo "## Available Examples" >> docs_metrics.md
+          for example_dir in examples/*/; do
+            if [ -d "$example_dir" ]; then
+              example_name=$(basename "$example_dir")
+              echo "- $example_name" >> docs_metrics.md
+            fi
+          done
+          
+          # List scripts
+          echo "" >> docs_metrics.md
+          echo "## Available Scripts" >> docs_metrics.md
+          for script in scripts/*.sh; do
+            if [ -f "$script" ]; then
+              script_name=$(basename "$script")
+              echo "- $script_name" >> docs_metrics.md
+            fi
+          done
+          
+          echo "" >> docs_metrics.md
+          echo "Generated on: $(date)" >> docs_metrics.md
+          
+          cat docs_metrics.md
+
+      - name: Upload documentation metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-metrics
+          path: docs_metrics.md
+
+  # Check for outdated information
+  freshness-check:
+    name: Documentation Freshness Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for outdated version references
+        run: |
+          echo "Checking for potentially outdated version references..."
+          
+          # Check for hardcoded version numbers that might be outdated
+          grep -r "0\.14\." . --include="*.md" --exclude-dir=node_modules || echo "No version 0.14.x references found"
+          grep -r "alpine:3\.18" . --include="*.md" --exclude-dir=node_modules || echo "No Alpine 3.18 references found"
+          
+          # Check for TODO or FIXME comments in documentation
+          echo ""
+          echo "Checking for TODO/FIXME items in documentation..."
+          grep -r -i "todo\|fixme" . --include="*.md" --exclude-dir=node_modules || echo "No TODO/FIXME items found"
+
+      - name: Check example configurations
+        run: |
+          echo "Validating example configurations are up to date..."
+          
+          # Check that all examples use consistent image names
+          for compose_file in examples/*/docker-compose.yml; do
+            if [ -f "$compose_file" ]; then
+              echo "Checking $compose_file"
+              if ! grep -q "michelmu/knxd-docker:latest" "$compose_file"; then
+                echo "Warning: $compose_file may not use the standard image name"
+              fi
+            fi
+          done
