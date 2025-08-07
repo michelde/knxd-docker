@@ -1,0 +1,27 @@
+# Hadolint configuration for knxd-docker
+# This file configures the Dockerfile linter to ignore certain rules
+# that conflict with build reliability requirements
+
+ignored:
+  # DL3018: Pin versions in apk add
+  # We ignore this rule because:
+  # 1. Alpine package versions change frequently
+  # 2. Pinned versions often cause build failures in CI/CD
+  # 3. We use Alpine 3.18 base image which provides stability
+  # 4. The multi-stage build approach minimizes security risks
+  - DL3018
+
+# Optional: Configure other rules
+failure-threshold: error
+
+# Trusted registries (if needed)
+# trusted-registries:
+#   - docker.io
+#   - ghcr.io
+
+# Override specific rules for certain lines (if needed)
+# override:
+#   error: []
+#   warning: []
+#   info: []
+#   style: []

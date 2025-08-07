@@ -522,13 +522,7 @@ The project includes helpful utility scripts:
 
 ## Documentation
 
-Comprehensive documentation is available in the [docs/](docs/) directory:
-
 - [Quick Start Guide](docs/quick-start.md) - Get running in minutes
-- [Configuration Guide](docs/configuration.md) - Detailed configuration
-- [Interface Guides](docs/interfaces/) - Hardware-specific setup
-- [Integration Guides](docs/integration/) - Home automation integration
-- [Troubleshooting](docs/advanced/troubleshooting.md) - Common issues and solutions
 
 ## Examples
 
