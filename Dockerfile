@@ -26,30 +26,34 @@ ENV LANG=C.UTF-8 \
 RUN set -xe && \
     apk update && \
     apk add --no-cache --virtual .build-deps \
-        git \
-        build-base \
-        automake \
-        autoconf \
-        argp-standalone \
-        linux-headers \
-        libev-dev \
-        libusb-dev \
-        cmake \
-        gcc \
-        g++ \
-        make \
-        libtool && \
+        git=2.40.1-r0 \
+        build-base=0.5-r3 \
+        automake=1.16.5-r2 \
+        autoconf=2.71-r2 \
+        argp-standalone=1.4.0-r0 \
+        linux-headers=6.3-r0 \
+        libev-dev=4.33-r1 \
+        libusb-dev=1.0.26-r0 \
+        cmake=3.26.5-r0 \
+        gcc=12.2.1_git20220924-r10 \
+        g++=12.2.1_git20220924-r10 \
+        make=4.4.1-r1 \
+        libtool=2.4.7-r2 && \
     # Install runtime dependencies needed for build
     apk add --no-cache \
-        libev \
-        libusb \
-        libgcc \
-        libstdc++
+        libev=4.33-r1 \
+        libusb=1.0.26-r0 \
+        libgcc=12.2.1_git20220924-r10 \
+        libstdc++=12.2.1_git20220924-r10
 
-# Clone, build and install knxd
+# Clone knxd source code
+RUN git clone --branch "${KNXD_VERSION}" --depth 1 https://github.com/knxd/knxd.git /tmp/knxd
+
+# Set working directory for build
+WORKDIR /tmp/knxd
+
+# Build and install knxd
 RUN set -xe && \
-    git clone --branch "${KNXD_VERSION}" --depth 1 https://github.com/knxd/knxd.git /tmp/knxd && \
-    cd /tmp/knxd && \
     chmod +x ./bootstrap.sh && \
     ./bootstrap.sh && \
     ./configure \
@@ -71,9 +75,11 @@ RUN set -xe && \
     make && \
     make DESTDIR=/install install && \
     # Strip binaries to reduce size
-    find /install -type f -executable -exec strip --strip-unneeded {} + 2>/dev/null || true && \
-    # Clean up build directory
-    cd / && rm -rf /tmp/knxd && \
+    find /install -type f -executable -exec strip --strip-unneeded {} + 2>/dev/null || true
+
+# Clean up build artifacts
+WORKDIR /
+RUN rm -rf /tmp/knxd && \
     # Remove build dependencies
     apk del .build-deps && \
     # Clean package cache
@@ -103,19 +109,19 @@ RUN set -xe && \
     apk update && \
     apk add --no-cache \
         # Core runtime libraries
-        libev \
-        libusb \
-        libgcc \
-        libstdc++ \
-        libtool \
+        libev=4.33-r1 \
+        libusb=1.0.26-r0 \
+        libgcc=12.2.1_git20220924-r10 \
+        libstdc++=12.2.1_git20220924-r10 \
+        libtool=2.4.7-r2 \
         # System utilities
-        udev \
-        bash \
+        udev=252-r0 \
+        bash=5.2.15-r5 \
         # Configuration processing
-        gettext \
+        gettext=0.21.1-r7 \
         # Network utilities for health checks
-        netcat-openbsd \
-        procps && \
+        netcat-openbsd=1.219-r0 \
+        procps=4.0.3-r0 && \
     # Clean package cache
     rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
 
