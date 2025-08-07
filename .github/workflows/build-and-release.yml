@@ -287,7 +287,7 @@ jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: [build, test, security]
+    needs: [build, test]
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout code
@@ -326,27 +326,6 @@ jobs:
           draft: false
           prerelease: false
 
-  # Cleanup old images (GitHub Container Registry only)
-  # Note: This job only works with GitHub Container Registry (ghcr.io)
-  # Docker Hub has its own retention policies and doesn't support this action
-  # Currently disabled since we're using Docker Hub (docker.io)
-  cleanup:
-    name: Cleanup Old Images
-    runs-on: ubuntu-latest
-    needs: [build, test]
-    if: false  # Disabled for Docker Hub - only works with GitHub Container Registry
-    steps:
-      - name: Delete old GitHub Container Registry images
-        uses: actions/delete-package-versions@v4
-        with:
-          package-name: knxd-docker
-          package-type: container
-          min-versions-to-keep: 10
-          delete-only-untagged-versions: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Log cleanup action
-        run: |
-          echo "Cleaned up old container images from GitHub Container Registry"
-          echo "Kept the 10 most recent versions"
-          echo "Note: This job is disabled when using Docker Hub registry"
+  # Note: Image cleanup is not available for Docker Hub
+  # Docker Hub manages retention through their own policies
+  # If using GitHub Container Registry (ghcr.io), you can add a cleanup job
