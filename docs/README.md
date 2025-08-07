@@ -6,6 +6,7 @@ This directory contains comprehensive documentation for the knxd-docker project.
 
 ### Getting Started
 - [Quick Start Guide](quick-start.md) - Get up and running quickly
+- [GitHub Secrets Setup](github-secrets-setup.md) - Configure Docker Hub authentication for CI/CD
 
 ## Quick Links
 

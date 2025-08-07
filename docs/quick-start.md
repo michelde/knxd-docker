@@ -178,13 +178,6 @@ nc -u localhost 3671
 sudo iptables -L | grep -E "(6720|3671)"
 ```
 
-## Next Steps
-
-- Read the [Configuration Guide](configuration.md) for detailed setupi
-- Check [Interface-specific guides](interfaces/) for your hardware
-- Review [Integration guides](integration/) for your home automation system
-- Explore [Advanced topics](advanced/) for optimization
-
 ## Getting Help
 
 - Review [Examples](../examples/) for your use case
