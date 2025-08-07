@@ -531,7 +531,6 @@ Ready-to-use examples are provided in the [examples/](examples/) directory:
 - [TPUART Interface](examples/tpuart/) - USB serial adapters (most common)
 - [IP Tunneling](examples/ip-tunneling/) - KNX/IP gateways
 - [USB Interface](examples/usb/) - Direct USB KNX interfaces
-- [FT12 Interface](examples/ft12/) - Serial FT12 interfaces
 
 Each example includes:
 - Complete `docker-compose.yml` configuration
