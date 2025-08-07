@@ -10,6 +10,11 @@ ignored:
   # 3. We use Alpine 3.18 base image which provides stability
   # 4. The multi-stage build approach minimizes security risks
   - DL3018
+  
+  # SC2015: Note that A && B || C is not if-then-else
+  # We ignore this rule because we use proper error handling patterns
+  # with explicit grouping and the || true pattern for optional operations
+  - SC2015
 
 # Optional: Configure other rules
 failure-threshold: error

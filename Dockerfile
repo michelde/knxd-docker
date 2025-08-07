@@ -71,7 +71,7 @@ RUN set -xe && \
         --prefix=/usr/local && \
     # Fix missing header issue
     mkdir -p src/include/sys && \
-    ln -sf /usr/lib/bcc/include/sys/cdefs.h src/include/sys/cdefs.h 2>/dev/null || true && \
+    { ln -sf /usr/lib/bcc/include/sys/cdefs.h src/include/sys/cdefs.h 2>/dev/null || true; } && \
     make && \
     make DESTDIR=/install install && \
     # Strip binaries to reduce size
