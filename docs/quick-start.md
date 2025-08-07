@@ -187,7 +187,6 @@ sudo iptables -L | grep -E "(6720|3671)"
 
 ## Getting Help
 
-- Check the [Troubleshooting Guide](advanced/troubleshooting.md)
 - Review [Examples](../examples/) for your use case
 - Search [GitHub Issues](https://github.com/michelde/knxd-docker/issues)
 - Create a new issue if needed
