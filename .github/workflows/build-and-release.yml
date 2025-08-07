@@ -11,7 +11,7 @@ on:
       knxd_version:
         description: 'KNXD Version to build'
         required: true
-        default: '0.14.66'
+        default: '0.14.72'
         type: string
       push_to_registry:
         description: 'Push to Docker registry'
@@ -22,7 +22,7 @@ on:
 env:
   REGISTRY: docker.io
   IMAGE_NAME: michelmu/knxd-docker
-  DEFAULT_KNXD_VERSION: "0.14.66"
+  DEFAULT_KNXD_VERSION: "0.14.72"
 
 jobs:
   # Lint and validate configuration files

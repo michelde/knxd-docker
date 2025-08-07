@@ -190,10 +190,10 @@ If you want to build the image yourself:
 
 ```bash
 # Basic build
-./scripts/build.sh 0.14.66
+./scripts/build.sh 0.14.72
 
 # Multi-platform build
-PLATFORMS=linux/amd64,linux/arm64 ./scripts/build.sh 0.14.66
+PLATFORMS=linux/amd64,linux/arm64 ./scripts/build.sh 0.14.72
 ```
 
 That's it! You should now have a working knxd-docker installation.

@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Default values
-KNXD_VERSION="${1:-0.14.66}"
+KNXD_VERSION="${1:-0.14.72}"
 IMAGE_NAME="${IMAGE_NAME:-knxd}"
 REGISTRY="${REGISTRY:-}"
 PUSH="${PUSH:-false}"
@@ -42,7 +42,7 @@ show_usage() {
 Usage: $0 [KNXD_VERSION] [OPTIONS]
 
 Arguments:
-  KNXD_VERSION    Version of knxd to build (default: 0.14.66)
+  KNXD_VERSION    Version of knxd to build (default: 0.14.72)
 
 Environment Variables:
   IMAGE_NAME      Name of the Docker image (default: knxd)
@@ -52,13 +52,13 @@ Environment Variables:
 
 Examples:
   # Basic build
-  $0 0.14.66
+  $0 0.14.72
 
   # Build with custom image name
-  IMAGE_NAME=my-knxd $0 0.14.66
+  IMAGE_NAME=my-knxd $0 0.14.72
 
   # Multi-platform build and push
-  REGISTRY=myregistry.com/myuser PUSH=true PLATFORMS=linux/amd64,linux/arm64 $0 0.14.66
+  REGISTRY=myregistry.com/myuser PUSH=true PLATFORMS=linux/amd64,linux/arm64 $0 0.14.72
 
   # Show this help
   $0 --help
@@ -74,7 +74,7 @@ fi
 # Validate knxd version format
 if ! [[ "$KNXD_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     log_error "Invalid KNXD_VERSION format: $KNXD_VERSION"
-    log_info "Expected format: x.y.z (e.g., 0.14.66)"
+    log_info "Expected format: x.y.z (e.g., 0.14.72)"
     exit 1
 fi
 
