@@ -20,7 +20,7 @@ The following build arguments can be used to customize the build:
 
 | Argument | Description | Required | Default | Example |
 |----------|-------------|----------|---------|---------|
-| `KNXD_VERSION` | Version/tag of knxd to build | **Yes** | - | `0.14.72` |
+| `KNXD_VERSION` | Version/tag of knxd to build | **Yes** | - | `0.14.74` |
 | `BUILD_DATE` | Build timestamp for metadata | No | - | `2024-01-15T10:30:00Z` |
 | `VCS_REF` | Git commit hash for metadata | No | - | `abc123def` |
 
