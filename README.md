@@ -29,7 +29,7 @@ The following build arguments can be used to customize the build:
 The simplest way to build the container:
 
 ```bash
-docker build --build-arg KNXD_VERSION=0.14.72 -t knxd .
+docker build --build-arg KNXD_VERSION=0.14.74 -t knxd .
 ```
 
 ### Build with Metadata
@@ -38,11 +38,11 @@ For better image metadata and traceability:
 
 ```bash
 docker build \
-    --build-arg KNXD_VERSION=0.14.72 \
+    --build-arg KNXD_VERSION=0.14.74 \
     --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
     --build-arg VCS_REF=$(git rev-parse --short HEAD) \
     -t michelmu/knxd-docker:latest \
-    -t michelmu/knxd-docker:0.14.72 \
+    -t michelmu/knxd-docker:0.14.74 \
     .
 ```
 
@@ -57,12 +57,12 @@ docker buildx inspect mybuilder --bootstrap
 
 # Build for multiple platforms
 docker buildx build \
-    --build-arg KNXD_VERSION=0.14.72 \
+    --build-arg KNXD_VERSION=0.14.74 \
     --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
     --build-arg VCS_REF=$(git rev-parse --short HEAD) \
     --platform=linux/amd64,linux/arm64 \
     -t michelmu/knxd-docker:latest \
-    -t michelmu/knxd-docker:0.14.72 \
+    -t michelmu/knxd-docker:0.14.74 \
     . \
     --push
 ```
@@ -514,7 +514,7 @@ The project includes helpful utility scripts:
 
 ```bash
 # Build the image with optimizations
-./scripts/build.sh 0.14.72
+./scripts/build.sh 0.14.74
 
 # Run comprehensive health checks
 ./scripts/health-check.sh [container_name]
