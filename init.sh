@@ -259,13 +259,13 @@ envsubst < "/etc/knxd-template.ini" > "/etc/knxd.ini"
 # Remove interface line if SERVER_INTERFACE is not set
 if [ -z "$SERVER_INTERFACE" ]; then
     log "SERVER_INTERFACE not set, removing interface line from configuration"
-    sed -i '/^interface = \$SERVER_INTERFACE$/d' /etc/knxd.ini
+    sed -i '/^interface = $/d' /etc/knxd.ini
 fi
 
 # Remove filters lines if FILTERS is not set
 if [ -z "$FILTERS" ]; then
     log "FILTERS not set, removing filters lines from configuration"
-    sed -i '/^filters = \$FILTERS$/d' /etc/knxd.ini
+    sed -i '/^filters = $/d' /etc/knxd.ini
 fi
 
 # Ensure the output file has the correct permissions
