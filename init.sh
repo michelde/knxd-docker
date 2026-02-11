@@ -93,10 +93,9 @@ if [ -z "$DEBUG_ERROR_LEVEL" ]; then
     log "Using default DEBUG_ERROR_LEVEL: $DEBUG_ERROR_LEVEL"
 fi
 
-# Set default filters if not provided
-if [ -z "$FILTERS" ]; then
-    FILTERS="single"
-    log "Using default FILTERS: $FILTERS"
+# Note: FILTERS is optional - if not provided, filter lines will be removed from config
+if [ -n "$FILTERS" ]; then
+    log "Using FILTERS: $FILTERS"
 fi
 
 # Set default NAT setting if not provided
@@ -256,6 +255,18 @@ log "Configuration validation passed successfully"
 # Replace placeholders with environment variable values
 log "Generating knxd configuration file..."
 envsubst < "/etc/knxd-template.ini" > "/etc/knxd.ini"
+
+# Remove interface line if SERVER_INTERFACE is not set
+if [ -z "$SERVER_INTERFACE" ]; then
+    log "SERVER_INTERFACE not set, removing interface line from configuration"
+    sed -i '/^interface = \$SERVER_INTERFACE$/d' /etc/knxd.ini
+fi
+
+# Remove filters lines if FILTERS is not set
+if [ -z "$FILTERS" ]; then
+    log "FILTERS not set, removing filters lines from configuration"
+    sed -i '/^filters = \$FILTERS$/d' /etc/knxd.ini
+fi
 
 # Ensure the output file has the correct permissions
 chmod 644 /etc/knxd.ini
